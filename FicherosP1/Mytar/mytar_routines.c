@@ -26,8 +26,10 @@ copynFile(FILE * origin, FILE * destination, int nBytes)
 	int ret = 0;
 	ret = fwrite(aux, 1, c, destination);
 
-	if(ret != c)
+	if (ret != c) {
+		printf("ERROR: couldn't copy properly\n");
 		return -1;
+	}
 	else
 		return c;
 }
@@ -53,12 +55,14 @@ loadstr(FILE * file)
 		size++;	
 
 	char* aux = malloc(sizeof(char) * (size + 1));
-	if(aux == NULL)
-		return aux;
 
 	fseek(file, -(size + 1), SEEK_CUR);
 
 	fread(aux, 1, size, file);
+	if (aux == NULL) {
+		printf("ERROR: allocate memory\n");
+		return NULL;
+	}
 
 	return aux;
 }
@@ -75,12 +79,30 @@ loadstr(FILE * file)
 stHeaderEntry*
 readHeader(FILE * tarFile, int *nFiles)
 {
-	stHeaderEntry* array[nFiles];
+	int n = 0, i = 0, aux = 0;
+	stHeaderEntry* read = NULL;
 
+	if (fread(&n, sizeof(int), 1, tarFile) == 0) {
+		printf("ERROR: can't read the mtar file\n");
+		return NULL;
+	}
 
-	
-	// Complete the function
-	return NULL;
+	read = malloc(sizeof(stHeaderEntry) * n);
+
+	for (i = 0; i < n; i++) {
+
+		if (loadstr(tarFile, &read[i].name) != 0) {
+			printf("ERROR: can't read the mtar file\n");
+			return NULL;
+		}
+
+		fread(&aux, sizeof(unsigned int), 1, tarFile);
+		read[i].size = aux;
+	}
+
+	(*nFiles) = n;
+
+	return read;
 }
 
 /** Creates a tarball archive 
@@ -107,8 +129,78 @@ readHeader(FILE * tarFile, int *nFiles)
 int
 createTar(int nFiles, char *fileNames[], char tarName[])
 {
-	// Complete the function
-	return EXIT_FAILURE;
+	FILE* in, out;
+	stHeaderEntry* headers;
+
+	int copiedBytes = 0, headerBytes = 0, i = 0;
+
+	headers = malloc(sizeof(stHeaderEntry) * nFiles);
+	headerBytes = sizeof(int) + nFiles * sizeof(unsigned int);
+
+	for (i = 0; i < nFiles; i++) {
+		headerBytes += strlen(fileNames[i]) + 1;
+	}
+
+	if ((out = fopen(headers[i].name, "w")) == NULL) {
+		return EXIT_FAILURE;
+	}
+	fseek(out, headerBytes, SEEK_SET);
+
+
+	//reading
+	for (i = 0; i < nFiles; i++) {
+
+		if ((in = fopen(fileNames[i], "r")) == NULL) {
+
+			printf("ERROR: file does not exist: %s \n", fileNames[i]);
+			return EXIT_FAILURE;
+		}
+
+		copiedBytes = copynFile(in, out, INT_MAX);	//INT_MAX is max int just to make sure you copy everything
+
+		if (copiedBytes == -1) {
+			printf("ERROR: invalid copied bytes\n");
+			return EXIT_FAILURE;
+		}
+		else {
+			headers[i].size = copiedBytes;
+			headers[i].name = malloc(sizeof(fileNames[i]) + 1);
+			strcpy(headers[i].name, fileNames[i]);
+		}
+
+		if (fclose(in) == EOF) {	//in case closing the file fails
+			printf("ERROR: couldn't close file\n");
+			return EXIT_FAILURE;
+		}
+	}
+
+	//writing
+	if (fseek(out, 0, SEEK_SET) != 0) {	//in case returning to the beginning of the file fails
+		printf("ERROR: couldn't close file\n");
+		return EXIT_FAILURE;
+	}
+	else
+		fwrite(&nFiles, sizeof(int), 1, out);
+
+	for (i = 0; i < nFiles; i++) {
+		fwrite(headers[i].name, strlen(headers[i].name) + 1, 1, out);
+		fwrite(&headers[i].size, sizeof(unsigned int), 1, out);
+	}
+
+	//cleaning up!
+	for (i = 0; i < nFiles; i++) {
+		free(headers[i].name);
+	}
+	free(headers);
+
+	if (fclose(out) == EOF) {	//in case closing the file fails
+		printf("ERROR: couldn't close file\n");
+		return EXIT_FAILURE;
+	}
+
+	printf("mtar file created!\n");
+
+	return EXIT_SUCCESS;
 }
 
 /** Extract files stored in a tarball archive
@@ -128,6 +220,53 @@ createTar(int nFiles, char *fileNames[], char tarName[])
 int
 extractTar(char tarName[])
 {
-	// Complete the function
-	return EXIT_FAILURE;
+	FILE* in = NULL, out = NULL;
+	stHeaderEntry* headers;
+
+	int n = 0, i = 0, copiedBytes = 0;
+
+	if ((in = fopen(tarName[i], "r")) == NULL) {
+
+		printf("ERROR: file does not exist: %s \n", fileNames[i]);
+		return EXIT_FAILURE;
+	}
+
+	if (readHeader(in, &headers, &n) == -1) {
+
+		printf("ERROR: error while loading the headers");
+
+		return EXIT_FAILURE;
+	}
+
+	for (i = 0; i < n; i++) {
+
+		if ((out = fopen(headers[i].name, "w")) == NULL) {
+			return EXIT_FAILURE;
+		} 
+		else {
+			copiedBytes = copynFile(in, out, headers[i].size); 
+			if (copiedBytes == -1) {
+				printf("ERROR: invalid copied bytes\n");
+				return EXIT_FAILURE;
+			}
+		}
+
+		if (fclose(out) != 0) {
+			printf("ERROR: couldn't close file\n");
+			return EXIT_FAILURE;
+		}
+	}
+
+	for (i = 0; i < n; i++) {
+		free(headers[i].name);
+	}
+
+	free(headers); 
+
+	if (fclose(in) == EOF) {
+		printf("ERROR: couldn't close file\n");
+		return (EXIT_FAILURE);
+	}
+
+	return EXIT_SUCCESS;
 }
