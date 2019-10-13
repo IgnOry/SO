@@ -18,20 +18,29 @@ int
 copynFile(FILE * origin, FILE * destination, int nBytes)
 {
 
-	char* aux = malloc(nBytes);
+    int totalBytes = 0;
+    int outputByte = 0;
+    int readByte = 0; 
 
-	int c = 0;
-	c = fread(aux, 1, nBytes, origin);
+    if (origin == NULL) {
+    	return -1;
+    }
+    
+    
+    while((totalBytes < nBytes) && (readByte = getc(origin)) != EOF) {
+        if ((ferror(origin) != 0)) {
+        	return -1;
+        } 
 
-	int ret = 0;
-	ret = fwrite(aux, 1, c, destination);
+        outputByte = putc(readByte, destination);
 
-	if (ret != c) {
-		printf("ERROR: couldn't copy properly\n");
-		return -1;
-	}
-	else
-		return c;
+        if (outputByte == EOF) {
+        	return -1;
+        }
+        totalBytes++;
+    }
+
+    return totalBytes;
 }
 
 /** Loads a string from a file.
@@ -48,23 +57,22 @@ copynFile(FILE * origin, FILE * destination, int nBytes)
 char*
 loadstr(FILE * file)
 {
-	int size = 0;
-	char buf;
+	int filenameLength = 0, index = 0;
+    char *name;
+    char bit;
 
-	while(buf = getc(file) != '\0')
-		size++;	
+    while((bit = getc(file) != '\0')) {
+        filenameLength++;
+    }
 
-	char* aux = malloc(sizeof(char) * (size + 1));
+    name =  malloc(sizeof(char) * (filenameLength + 1));
+    fseek(file, -(filenameLength + 1), SEEK_CUR);
 
-	fseek(file, -(size + 1), SEEK_CUR);
-
-	fread(aux, 1, size, file);
-	if (aux == NULL) {
-		printf("ERROR: allocate memory\n");
-		return NULL;
-	}
-
-	return aux;
+    for (index = 0; index < filenameLength+1; index++) {
+        name[index] = getc(file);
+    }
+    
+    return name;
 }
 
 /** Read tarball header and store it in memory.
@@ -83,7 +91,7 @@ readHeader(FILE * tarFile, int *nFiles)
 	stHeaderEntry* read = NULL;
 
 	if (fread(&n, sizeof(int), 1, tarFile) == 0) {
-		printf("ERROR: can't read the mtar file\n");
+		printf("ERROR: can't read the mtar file.\n");
 		return NULL;
 	}
 
@@ -91,8 +99,8 @@ readHeader(FILE * tarFile, int *nFiles)
 
 	for (i = 0; i < n; i++) {
 
-		if (loadstr(tarFile, &read[i].name) != 0) {
-			printf("ERROR: can't read the mtar file\n");
+		if ((read[i].name = loadstr(tarFile)) == NULL) {
+			printf("ERROR: loading string failed.\n");
 			return NULL;
 		}
 
@@ -129,21 +137,21 @@ readHeader(FILE * tarFile, int *nFiles)
 int
 createTar(int nFiles, char *fileNames[], char tarName[])
 {
-	FILE* in, out;
+	FILE * in;
+	FILE * out;
 	stHeaderEntry* headers;
 
 	int copiedBytes = 0, headerBytes = 0, i = 0;
 
 	headers = malloc(sizeof(stHeaderEntry) * nFiles);
-	headerBytes = sizeof(int) + nFiles * sizeof(unsigned int);
+	headerBytes += sizeof(int);
+	headerBytes += nFiles * sizeof(unsigned int);
 
 	for (i = 0; i < nFiles; i++) {
 		headerBytes += strlen(fileNames[i]) + 1;
 	}
 
-	if ((out = fopen(headers[i].name, "w")) == NULL) {
-		return EXIT_FAILURE;
-	}
+	out = fopen(tarName, "w");
 	fseek(out, headerBytes, SEEK_SET);
 
 
@@ -220,20 +228,22 @@ createTar(int nFiles, char *fileNames[], char tarName[])
 int
 extractTar(char tarName[])
 {
-	FILE* in = NULL, out = NULL;
+	FILE* in = NULL;
+	FILE* out = NULL;
 	stHeaderEntry* headers;
+	
 
 	int n = 0, i = 0, copiedBytes = 0;
 
-	if ((in = fopen(tarName[i], "r")) == NULL) {
+	if ((in = fopen(tarName, "r")) == NULL) {
 
-		printf("ERROR: file does not exist: %s \n", fileNames[i]);
+		printf("ERROR: file does not exist: %s \n", tarName);
 		return EXIT_FAILURE;
 	}
 
-	if (readHeader(in, &headers, &n) == -1) {
+	if ((headers = readHeader(in, &n)) == NULL) {
 
-		printf("ERROR: error while loading the headers");
+		printf("ERROR: error while loading the headers \n");
 
 		return EXIT_FAILURE;
 	}
