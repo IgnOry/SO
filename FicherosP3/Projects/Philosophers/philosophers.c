@@ -6,14 +6,20 @@
 #define NR_PHILOSOPHERS 5
 
 pthread_t philosophers[NR_PHILOSOPHERS];
-pthread_mutex_t forks[NR_PHILOSOPHERS];
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t cond[N_PHILOSOPHERS];
+static int turn = 0;
+//variable estática que determina el turno de cada filósofo
 
 
 void init()
 {
     int i;
-    for(i=0; i<NR_PHILOSOPHERS; i++)
-        pthread_mutex_init(&forks[i],NULL);
+    pthread_mutex_init(mutex,NULL);
+
+	for (i = 0; i < N_PHILOSOPHERS; i++)
+		pthread_cond_init(&cond[i], NULL);
+
     
 }
 
@@ -35,7 +41,6 @@ void toSleep(int i) {
     printf("Philosopher %d sleeping... \n" , i);
     sleep(random() % 10);
     printf("Philosopher %d is awake!!! \n" , i);
-    
 }
 
 void* philosopher(void* i)
@@ -43,16 +48,30 @@ void* philosopher(void* i)
     int nPhilosopher = (int)i;
     int right = nPhilosopher;
     int left = (nPhilosopher - 1 == -1) ? NR_PHILOSOPHERS - 1 : (nPhilosopher - 1);
+	int waitingTime = 0;
     while(1)
     {
         
         think(nPhilosopher);
+
+		pthread_mutex_lock(&mutex);
         
-        /// TRY TO GRAB BOTH FORKS (right and left)
+		while (turn != nPhilosopher) {
+			pthread_cond_wait(&cond[right], &mutex)
+		}
+
+		pthread_mutex_unlock(&mutex);
 
         eat(nPhilosopher);
         
-        // PUT FORKS BACK ON THE TABLE
+		pthread_mutex_lock(&mutex);
+
+		pthread_cond_wait(&cond[right], &mutex)
+		pthread_cond_wait(&cond[left], &mutex)
+
+		pthread_mutex_unlock(&mutex);
+
+		turn = (turn == 0) ? NR_PHILOSOPHERS - 1 : (turn - 1);	//se avanza el turno
         
         toSleep(nPhilosopher);
    }
