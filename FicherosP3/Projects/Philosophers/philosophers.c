@@ -7,7 +7,7 @@
 
 pthread_t philosophers[NR_PHILOSOPHERS];
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cond[N_PHILOSOPHERS];
+pthread_cond_t cond[NR_PHILOSOPHERS];
 static int turn = 0;
 //variable estática que determina el turno de cada filósofo
 
@@ -15,9 +15,9 @@ static int turn = 0;
 void init()
 {
     int i;
-    pthread_mutex_init(mutex,NULL);
+    pthread_mutex_init(&mutex, NULL);
 
-	for (i = 0; i < N_PHILOSOPHERS; i++)
+	for (i = 0; i < NR_PHILOSOPHERS; i++)
 		pthread_cond_init(&cond[i], NULL);
 
     
@@ -56,8 +56,9 @@ void* philosopher(void* i)
 
 		pthread_mutex_lock(&mutex);
         
-		while (turn != nPhilosopher) {
-			pthread_cond_wait(&cond[right], &mutex)
+		while (turn != nPhilosopher)
+		{
+			pthread_cond_wait(&cond[right], &mutex);
 		}
 
 		pthread_mutex_unlock(&mutex);
@@ -66,8 +67,8 @@ void* philosopher(void* i)
         
 		pthread_mutex_lock(&mutex);
 
-		pthread_cond_wait(&cond[right], &mutex)
-		pthread_cond_wait(&cond[left], &mutex)
+		pthread_cond_signal(&cond[right]);
+		pthread_cond_signal(&cond[left]);
 
 		pthread_mutex_unlock(&mutex);
 
@@ -82,10 +83,11 @@ int main()
 {
     init();
     unsigned long i;
-    for(i=0; i<NR_PHILOSOPHERS; i++)
+    for(i=0; i < NR_PHILOSOPHERS; i++)
         pthread_create(&philosophers[i], NULL, philosopher, (void*)i);
     
     for(i=0; i<NR_PHILOSOPHERS; i++)
         pthread_join(philosophers[i],NULL);
+    
     return 0;
 } 
