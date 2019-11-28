@@ -22,8 +22,7 @@ pthread_cond_t busArranca;
 
 pthread_t* usuarios;
 pthread_t bus;
-pthread_mutex_t busMutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_mutex_t usuarioMutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 // Otras definiciones globales (comunicación y sincronización)
 
 void Autobus_En_Parada() {
@@ -31,28 +30,24 @@ void Autobus_En_Parada() {
 	quieran bajar y/o subir la parada actual. Después se pone en marcha */
 	int i;
 
+	pthread_mutex_lock(&mutex);
 	estado = EN_PARADA;
 
 	printf("---\nPARADA %d\n%d suben\n%d bajan\n---\n", parada_actual, esperando_parada[parada_actual], esperando_bajar[parada_actual]);
 
-	pthread_mutex_lock(&busMutex);
-
-
-	printf("Avisando!\n");
-	for(i = 0; i < USUARIOS; i++){
-		pthread_cond_signal(&busParado);
-	}
+	pthread_cond_broadcast(&busParado);
 
 	//si hay más ocupantes que los que caben, el bus saldrá sin coger más
 	while ((esperando_parada[parada_actual] > 0 || esperando_bajar[parada_actual] > 0) && n_ocupantes <= MAX_USUARIOS) {
-		pthread_cond_wait(&busArranca, &busMutex);
+		pthread_cond_wait(&busArranca, &mutex);
 	}
 
 	printf("Arreando!\n");
 
-	pthread_mutex_unlock(&busMutex);
-
 	estado = EN_RUTA;
+
+	pthread_mutex_unlock(&mutex);
+
 }
 void Conducir_Hasta_Siguiente_Parada() {
 	/* Establecer un Retardo que simule el trayecto y actualizar numero de parada */
@@ -68,47 +63,51 @@ void Subir_Autobus(int id_usuario, int origen) {
 	el autobús se pare en dicha parada y subirá. El id_usuario puede utilizarse para
 	proporcionar información de depuración */
 
-	esperando_parada[origen] += 1;
+	pthread_mutex_lock(&mutex);
 
-	pthread_mutex_lock(&usuarioMutex);
+
+	esperando_parada[origen] += 1;
 
 	//si hay más ocupantes que los que caben, el bus saldrá sin coger más
 	while (n_ocupantes > MAX_USUARIOS || estado != EN_PARADA || parada_actual != origen) {
-		pthread_cond_wait(&busParado, &usuarioMutex);
+		pthread_cond_wait(&busParado, &mutex);
 	}
 	printf("Usuario %d subido: %d\n", id_usuario, parada_actual);
 
-	pthread_mutex_unlock(&usuarioMutex);
-
 	esperando_parada[origen] -= 1;
 	n_ocupantes += 1;
-
-	pthread_cond_signal(&busArranca);
 	
 	printf("Usuario %d desbloqueado\n", id_usuario);
+
+	pthread_cond_signal(&busArranca);
+
+
+	pthread_mutex_unlock(&mutex);
 }
 void Bajar_Autobus(int id_usuario, int destino) {
 	/* El usuario indicará que quiere bajar en la parada ’destino’, esperará a que
 	el autobús se pare en dicha parada y bajará. El id_usuario puede utilizarse para
 	proporcionar información de depuración */
-	esperando_bajar[destino] += 1;
+	pthread_mutex_lock(&mutex);
 
-	pthread_mutex_lock(&usuarioMutex);
+
+	esperando_bajar[destino] += 1;
 
 	//si hay más ocupantes que los que caben, el bus saldrá sin coger más
 	while (n_ocupantes > MAX_USUARIOS || estado != EN_PARADA || parada_actual != destino) {
-		pthread_cond_wait(&busParado, &usuarioMutex);
+		pthread_cond_wait(&busParado, &mutex);
 	}
 	printf("Usuario %d bajado: %d\n", id_usuario, parada_actual);
-
-	pthread_mutex_unlock(&usuarioMutex);
 
 	esperando_bajar[destino] -= 1;
 	n_ocupantes -= 1;
 
+	printf("Usuario %d desbloqueado\n", id_usuario);
+
 	pthread_cond_signal(&busArranca);
 
-	printf("Usuario %d desbloqueado\n", id_usuario);
+
+	pthread_mutex_unlock(&mutex);
 }
 
 
@@ -166,8 +165,7 @@ int main(int argc, char* argv[]) {
 	 
 
 	// Crear el thread Autobus
-    pthread_mutex_init(&busMutex, NULL);
-	pthread_mutex_init(&usuarioMutex, NULL);
+    pthread_mutex_init(&mutex, NULL);
 
 	pthread_create(&bus, NULL, thread_autobus, NULL);
 

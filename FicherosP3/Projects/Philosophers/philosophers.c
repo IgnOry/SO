@@ -6,41 +6,44 @@
 #define NR_PHILOSOPHERS 5
 
 pthread_t philosophers[NR_PHILOSOPHERS];
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t cond[NR_PHILOSOPHERS];
+pthread_mutex_t mutex[NR_PHILOSOPHERS];
 static int turn = 0;
 //variable estática que determina el turno de cada filósofo
 
+char* names[NR_PHILOSOPHERS] = {"Karl Marx",
+"Barnett Newmann",
+"Mao Zedong",
+"Martin Heidegger",
+"Marta Harnecker"};
 
 void init()
 {
     int i;
-    pthread_mutex_init(&mutex, NULL);
 
 	for (i = 0; i < NR_PHILOSOPHERS; i++)
-		pthread_cond_init(&cond[i], NULL);
+		pthread_mutex_init(&mutex[i], NULL);
 
     
 }
 
 void think(int i) {
-    printf("Philosopher %d thinking... \n" , i);
+    printf("%s thinking... \n", names[i]);
     sleep(random() % 10);
-    printf("Philosopher %d stopped thinking!!! \n" , i);
+    printf("%s stopped thinking!!! \n", names[i]);
 
 }
 
 void eat(int i) {
-    printf("Philosopher %d eating... \n" , i);
+    printf("%s eating... \n", names[i]);
     sleep(random() % 5);
-    printf("Philosopher %d is not eating anymore!!! \n" , i);
+    printf("%s is not eating anymore!!! \n", names[i]);
 
 }
 
 void toSleep(int i) {
-    printf("Philosopher %d sleeping... \n" , i);
+    printf("%s sleeping... \n", names[i]);
     sleep(random() % 10);
-    printf("Philosopher %d is awake!!! \n" , i);
+    printf("%s is awake!!! \n", names[i]);
 }
 
 void* philosopher(void* i)
@@ -54,23 +57,22 @@ void* philosopher(void* i)
         
         think(nPhilosopher);
 
-		pthread_mutex_lock(&mutex);
-        
-		while (turn != nPhilosopher)
-		{
-			pthread_cond_wait(&cond[right], &mutex);
-		}
+        int r = right, l = left;
 
-		pthread_mutex_unlock(&mutex);
+        if(right > left){
+        	r = left;
+        	l = right;
+        }
+
+		pthread_mutex_lock(&mutex[r]);
+		pthread_mutex_lock(&mutex[l]);
+
+		//con 5 mutex, no condiciones
 
         eat(nPhilosopher);
-        
-		pthread_mutex_lock(&mutex);
 
-		pthread_cond_signal(&cond[right]);
-		pthread_cond_signal(&cond[left]);
-
-		pthread_mutex_unlock(&mutex);
+		pthread_mutex_unlock(&mutex[l]);
+		pthread_mutex_unlock(&mutex[r]);
 
 		turn = (turn == 0) ? NR_PHILOSOPHERS - 1 : (turn - 1);	//se avanza el turno
         
